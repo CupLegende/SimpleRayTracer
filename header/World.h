@@ -2,16 +2,17 @@
 #include <Eigen/Dense>
 #include <list>
 #include "Geometry.h"
-#include "GUI.h"
+//#include "GUI.h"
 #include <list>
 #include "KDtree.h"
-#include "Shader.h"
+//#include "Shader.h"
 #include "Graphics.h"
-
+//#include "ShadeData.h"
+#include "Tracer.h"
+#include "Light.h"
+#include "Ray.h"
 using namespace Eigen;
 using namespace std;
-
-
 
 
 struct ViewPlane {
@@ -28,14 +29,17 @@ class World {
 public:
 	KDtree tree;
 	ViewPlane *vp;
+	bool traceArea = false;
 	//DrawPanel * paintArea;
 	//MyApp app;
-	Vector3d backGround; 
+	Ambient* ambient;
+	Vector3d backGround = Vector3d(0.0,0.0,0.0); 
 	vector <Geometry*> objects;
-	Shader shader;
+	//Shader shader;
 	vector<Light*>lights;
 	Graphics gr;
-	World(ViewPlane*, Vector3d& Am);
+	Tracer* tracer;
+	World(ViewPlane*, Ambient* Am);
 	~World();
 	void addLights(Light* lt);
 
@@ -49,7 +53,9 @@ public:
 
 	void perspectiveRender(Vector3d eyePos, Vector3d up, Vector3d look, double dist, bool multiJitter);
 
-	Vector3d hit_objects(Ray& r);
+	ShadeData* hit_objects(Ray& r);
+
+	bool hit_objectsShallow(Ray& r, float d);
 
 	void buildTree();
 

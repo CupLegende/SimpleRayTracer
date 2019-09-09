@@ -1,7 +1,13 @@
 #pragma once
+#include <Eigen/Dense>
 #include <vector>
+#include "Ray.h"
+#include "ShadeData.h"
 #include "Geometry.h"
 
+
+//class Geometry;
+using namespace Eigen;
 using namespace std;
 class KDtreeNode 
 {
@@ -33,6 +39,8 @@ public:
 	static double totalRange[3];
 	KDtreeNode *root;
 	//ViewPlane *vp;
+	ShadeData* traverseShallow(Ray &, float d);
+	ShadeData* childTraverseShallow(Ray & r, KDtreeNode * nd, double tmin, double tma, float d);
 	ShadeData* traverse(Ray &);
 	ShadeData* childTraverse(Ray & r, KDtreeNode * nd, double tmin, double tma);
 	KDtree();

@@ -1,4 +1,4 @@
-#pragma once
+/*#pragma once
 #include <Eigen/dense>
 #include "KDtree.h"
 using namespace Eigen;
@@ -18,4 +18,4 @@ public:
 
 	~Shader();
 };
-
+*/

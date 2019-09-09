@@ -16,7 +16,7 @@ public:
 	~Graphics();
 	sf::RenderWindow* rw;
 	std::vector<sf::Vertex> vertices;
-
+	//sf::Vertex vertices[][];
 	void add(RenderPixel* rd);
 	void draw();
 };
