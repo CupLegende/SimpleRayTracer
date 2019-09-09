@@ -1,7 +1,6 @@
 #include <Eigen/Dense>
 #include <list>
 #include "Geometry.h"
-#include "GUI.h"
 #include <list>
 #include "World.h"
 #include "Geometry.h"
@@ -13,6 +12,9 @@
 #include "Graphics.h"
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include "ShadeData.h"
+#include "Tracer.h"
+#include <omp.h>
 
 using namespace Eigen;
 using namespace std;
@@ -31,11 +33,13 @@ World::~World() {
 	}
 }
 
-World::World(ViewPlane * v, Vector3d &Ambient){
+World::World(ViewPlane * v, Ambient* Ambient){
 	vp = v;
-	shader = (Shader(Ambient));
+	ambient = Ambient;
+	//shader = (Shader(Ambient));
+	tracer = new Tracer();
+	tracer->world = this;
 	//paintArea = 
-
 }
 
 void World::addLights(Light * l) {
@@ -50,32 +54,39 @@ void World::orthographicRender(double zCoord, bool multiJitter) {
 	Ray ra = Ray{ Vector3d(0.0, 0.0, 0.0), Vector3d(0.0, 0.0, -1.0) };
 	int hres = vp->hres;
 	int vres = vp->vres;
-	int s = vp->pixelSize;
+	float s = vp->pixelSize;
 	if (multiJitter == false) {
+
 		for (int r = 0; r < vres; r++) {
+			cout << r << "\n";
 			for (int c = 0; c < hres; c++) {
 				ra.origin = Vector3d(s*(c - hres / 2 + 0.5), s*(r - vres / 2 + 0.5), zCoord);
-				Vector3d pixel_color = hit_objects(ra);
+				Vector3d pixel_color;
+				if(traceArea == true)
+					pixel_color = tracer->traceRayArea(ra);
+				else
+					pixel_color = tracer->traceRay(ra);
 				display(r, c, pixel_color);
 			}
 		}
 	}
 	else {
 		Sampler rs = Sampler();
-		ArrayXf line = ArrayXf::LinSpaced(rs.numEachRow+2, 0.0, 1.0);
+		Vector2d temp = rs.sampleSquare();
 		for (int r = 0; r < vres; r++) {
 			for (int c = 0; c < hres; c++) {
 				Vector3d resultColor = Vector3d(0.0, 0.0, 0.0);
-				for (int rr = 1; rr < rs.numEachRow + 1; rr++) {
-					for (int cc = 1; cc < rs.numEachRow + 1; cc++) {
-						double* temp = rs.getSample();
-						ra.origin = Vector3d(s*(c - hres / 2 + line[cc] + temp[0]), s*(r - vres / 2 + line[rr] + temp[1]), zCoord);
-						Vector3d pixel_color = hit_objects(ra);
-						resultColor += pixel_color;
-					}
-
+				for (int si = 0; si < rs.num_samples; si++) {
+					Vector2d temp = rs.sampleSquare();
+					ra.origin = Vector3d(s*(c - hres / 2 + temp[0]), s*(r - vres / 2  + temp[1]), zCoord);
+					Vector3d pixel_color;
+					if (traceArea == true)
+						pixel_color = tracer->traceRayArea(ra);
+					else
+						pixel_color = tracer->traceRay(ra);
+					resultColor += pixel_color;
 				}
-				display(r, c, resultColor / rs.numOfSample);
+				display(r, c, resultColor / rs.num_samples);
 			}
 		}
 	}
@@ -83,8 +94,8 @@ void World::orthographicRender(double zCoord, bool multiJitter) {
 }
 
 void World::perspectiveRender(Vector3d eyePos, Vector3d up, Vector3d look, double dist, bool multiJitter) {
-	Ray ra = Ray{ Vector3d(0.0,0.0,0.0), Vector3d(0.0,0.0,-1.0) };
-	Vector3d w = eyePos - look;
+	
+	Vector3d w = (eyePos - look);
 	w = w / w.norm();
 	if (up[1] == w[1]) {
 		up = -1.0 * up;
@@ -94,16 +105,29 @@ void World::perspectiveRender(Vector3d eyePos, Vector3d up, Vector3d look, doubl
 	Vector3d v = w.cross(u);
 	int hres = vp->hres;
 	int vres = vp->vres;
-	int s = vp->pixelSize;
+	float s = vp->pixelSize;
 	if (multiJitter == false) {
-		for (int r = 0; r < vres; r++) {
-			for (int c = 0; c < hres; c++) {
+		int r, c;
+		
+		//for (r = vres-1; r >= 0; r--) {
+		for (r = 0; r < vres; r++) {
+			cout << r << "\n";
+			//cout << r << "\n";
+			//#pragma omp parallel for private(c) schedule(dynamic)
+			for (c = 0; c < hres; c++) {
 				double xv = s * (c - hres / 2 + 0.5);
 				double yv = s * (r - vres / 2 + 0.5);
 				Vector3d dir = xv * u + yv * v - dist * w;
+				Ray ra = Ray{ Vector3d(0.0,0.0,0.0), Vector3d(0.0,0.0,1.0) };
 				ra.direction = dir / dir.norm();
 				ra.origin = eyePos;
-				Vector3d pixel_color = hit_objects(ra);
+
+				Vector3d pixel_color;
+				if (traceArea == true)
+					pixel_color = tracer->traceRayArea(ra, 0);
+				else
+					pixel_color = tracer->traceRay(ra, 0);
+
 				display(r, c, pixel_color);
 			}
 		}
@@ -111,39 +135,96 @@ void World::perspectiveRender(Vector3d eyePos, Vector3d up, Vector3d look, doubl
 
 	else {
 		Sampler rs = Sampler();
-		ArrayXf line = ArrayXf::LinSpaced(rs.numEachRow + 2, 0.0, 1.0);
+
 		for (int r = 0; r < vres; r++) {
 			for (int c = 0; c < hres; c++) {
 				Vector3d resultColor = Vector3d(0.0, 0.0, 0.0);
-				for (int rr = 1; rr < rs.numEachRow + 1; rr++) {
-					for (int cc = 1; cc < rs.numEachRow + 1; cc++) {
-						double* temp = rs.getSample();
-						double xv = s * (c - hres / 2 + line[cc] + temp[0]);
-						double yv = s * (r - vres / 2 + line[rr] + temp[1]);
-						Vector3d dir = xv * u + yv * v - dist * w;
-						ra.origin = eyePos;
-						ra.direction = dir / dir.norm();
-						Vector3d pixel_color = hit_objects(ra);
-						resultColor += pixel_color;
-					}
 
+				for (int si = 0; si < rs.num_samples; si++) {
+					Vector2d temp = rs.sampleSquare();
+					double xv = s * (c - hres / 2 + temp[0]);
+					double yv = s * (r - vres / 2 + temp[1]);
+					Vector3d dir = xv * u + yv * v - dist * w;
+					Ray ra = Ray{ Vector3d(0.0,0.0,0.0), Vector3d(0.0,0.0,-1.0) };
+					ra.origin = eyePos;
+					ra.direction = dir / dir.norm();
+
+					Vector3d pixel_color;
+					if (traceArea == true)
+						pixel_color = tracer->traceRayArea(ra);
+					else
+						pixel_color = tracer->traceRay(ra);
+
+					resultColor += pixel_color;
 				}
-				display(r, c, resultColor / rs.numOfSample);
+				
+				display(r, c, resultColor / rs.num_samples);
 			}
 		}
 
 	}
 }
 
-Vector3d World::hit_objects(Ray& r) {
-	//bool hitObject = false;
+
+bool World::hit_objectsShallow(Ray& r, float d) {
+	/*
+	 	ShadeData * sd = 
+		new ShadeData;
+	int localTmin = d;
+	bool hitObject = false;
+
+	for (auto & i : objects) {
+		bool flag = i->hit(r, sd);
+		//cout << i->castShadow << "\n";
+		if (flag && sd->t < localTmin && i->castShadow) {
+			hitObject = true;
+			localTmin = sd->t;
+		}
+	}
+	//cout  << "\n";
+	if (hitObject) {
+		
+			return true;
+		
+		
+	}
+	else {
+		return false;
+	}
+	*/
+	
+	//r.origin = r.origin + 0.0000001 * r.direction;
+	//cout << "fk1" << "\n";
+	ShadeData*sdT = tree.traverseShallow(r, d);
+	//Maybe buggy to do this
+	//cout << d << "\n";
+	//cout << sdT->t << "\n\n";
+	bool cs = sdT->castShadow && sdT->hitObject;
+	delete sdT;
+	return cs;
+	//cout << "fk2" << "\n";
+
+
+
+	/* 
+	bool cash = true;
+	
+	bool newTemp= tree.traverseShallow(r, d, cash);
+	//cout << cash << "\n";
+	return newTemp && cash;
+	*/
+	
+}
+
+ShadeData* World::hit_objects(Ray& r) {
+	
 	Vector3d * color = &Vector3d();
 	
-
-	//ShadeData * sd = new ShadeData;
-	//int localTmin = INT_MAX;
-	//bool hitObject = false;
-	/* 
+	/*
+	ShadeData * sd = new ShadeData;
+	int localTmin = INT_MAX;
+	bool hitObject = false;
+	 
 	for (auto & i : objects) {
 		bool flag = i->hit(r, sd);
 		if (flag && sd->t < localTmin) {
@@ -160,11 +241,16 @@ Vector3d World::hit_objects(Ray& r) {
 	*/
 
 	ShadeData * sd = tree.traverse(r);
-	if (sd != nullptr) {
-	
-		color = shader.shade(r,sd, &tree, &lights);
-		//may want to do depth
+	if (sd != nullptr)
+	{
+		sd->ray = r;
+		sd->w = this;
 	}
+	//if (sd != nullptr) {
+	
+		//color = shader.shade(r,sd, &tree, &lights);
+		//may want to do depth
+	//}
 	/*
 	for (auto & i: objects) {
 		bool flag = i.hit(r, sd);
@@ -177,12 +263,13 @@ Vector3d World::hit_objects(Ray& r) {
 		}
 	}
 	*/
-	else {
-		color = &backGround;
-	}
+	//else {
+	//	color = &backGround;
+	//}
 
 	//delete sd;
-	return *color;
+	//return *color;
+	return sd;
 };
 
 void World::display(int row, int col, Vector3d color) {
@@ -203,10 +290,10 @@ void World::display(int row, int col, Vector3d color) {
 	int x = col;
 	int y = vp->vres - row - 1;
 	
-	cout << y << "\n";
-	RenderPixel* temp = new RenderPixel{ x,y, (int)(finalColor[0] * 255), (int)(finalColor[1] * 255), (int)(finalColor[2] * 255) };
+	
+	RenderPixel temp = RenderPixel{ x,y, (int)(finalColor[0] * 255), (int)(finalColor[1] * 255), (int)(finalColor[2] * 255) };
 	//paintArea->addPixel(*temp);
-	gr.add(temp);
+	gr.add(&temp);
 }
 
 void World::show() {

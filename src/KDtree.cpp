@@ -13,43 +13,6 @@ struct by_Pos {
 	}
 };
 
-/* 
-struct by_maxX {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->maxCoord[0] < b->ge->maxCoord[0];
-	}
-};
-
-struct by_maxY {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->maxCoord[1] < b->ge->maxCoord[1];
-	}
-};
-
-struct by_maxZ {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->maxCoord[2] < b->ge->maxCoord[2];
-	}
-};
-
-struct by_minX {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->minCoord[0] < b->ge->minCoord[0];
-	}
-};
-
-struct by_minY {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->minCoord[1] < b->ge->minCoord[1];
-	}
-};
-
-struct by_minZ {
-	bool operator()(GeoWithIndex *a, GeoWithIndex *b) const noexcept {
-		return a->ge->minCoord[2] < b->ge->minCoord[2];
-	}
-};*/
-
 
 KDtreeNode::KDtreeNode(vector <Geometry*>& P, int depth, int end,  Vector3d &Vmin, Vector3d &Vmax) {
 	maxCoord = Vmax;
@@ -68,33 +31,10 @@ KDtreeNode::KDtreeNode(vector <Geometry*>& P, int depth, int end,  Vector3d &Vmi
 			i->maxCoord[rotate],
 			true
 		};
-
 		temp.push_back(stu1);
 		temp.push_back(stu2);
 	}
 	sort(temp.begin(), temp.end(), by_Pos());
-
-	/* 
-	if (rotate == 0) {
-		sort(temp.begin(), temp.end(), by_minX());
-		sort(temp2.begin(), temp2.end(), by_maxX());
-	}
-	else if (rotate == 1) {
-		sort(temp.begin(), temp.end(), by_minY());
-		sort(temp2.begin(), temp2.end(), by_maxY());
-	}
-	else {
-		sort(temp.begin(), temp.end(), by_minZ());
-		sort(temp2.begin(), temp2.end(), by_maxZ());
-	}
-	
-
-	int count = 0;
-	for (auto & i : temp) {
-		i->indi = count;
-		count++;
-	}
-	*/
 
 	//hardcode cri
 	if (P.size() >= 3 && (Vmax[rotate] - Vmin[rotate]) / KDtree::totalRange[rotate] >= 0.02 && end <= 2)
@@ -116,10 +56,11 @@ KDtreeNode::KDtreeNode(vector <Geometry*>& P, int depth, int end,  Vector3d &Vmi
 			
 			auto &i = j->ge;
 			double clipPos = min(max(j->pos, Vmin[rotate]), Vmax[rotate]);
-			double currentCost = ( triCount) * (clipPos - Vmin[rotate]) / surface + 
-				(total) * (Vmax[rotate]-clipPos) / surface;
+			double cost1 = (clipPos - Vmin[rotate]) / surface;
+			double cost2 = (Vmax[rotate] - clipPos) / surface;
+			double currentCost = ( triCount) * cost1 + (total) * cost2;
 
-			if (currentCost < optimalCost) {
+			if (currentCost < optimalCost && cost1 != 0 && cost2 !=0) {
 				optimalCost = currentCost;
 				//optimalIndex = triCount-1;
 				//middle = temp.at(optimalIndex)->maxCoord[depth % 3];
@@ -130,44 +71,53 @@ KDtreeNode::KDtreeNode(vector <Geometry*>& P, int depth, int end,  Vector3d &Vmi
 			{
 				triCount++;
 			}
-
-			/* 
-			minCoord[0] = min(i->minCoord[0], minCoord[0]);
-			minCoord[1] = min(i->minCoord[1], minCoord[1]);
-			minCoord[2] = min(i->minCoord[2], minCoord[2]);
-			maxCoord[0] = max(i->maxCoord[0], maxCoord[0]);
-			maxCoord[1] = max(i->maxCoord[1], maxCoord[1]);
-			maxCoord[2] = max(i->maxCoord[2], maxCoord[2]);
-			*/
 		}
 
 		for (auto & i : temp) {
-			if (i->pos >= middle && i->max) {
-				rightVec.push_back(i->ge);
+			
+			if (i->pos > middle && i->max) {
+				//repeat push
+				//bool ri = true;
+				//for (auto & j : rightVec) {
+					
+					//if (j == i->ge) {
+						
+						//ri = false;
+					//}
+				//}
+				//if(ri)
+					rightVec.push_back(i->ge);
 			}
-			if (i->pos <= middle && !(i->max)) {
-				leftVec.push_back(i->ge);
+			if (i->pos < middle && !(i->max)) {
+				//bool le = true;
+				//for (auto & j : leftVec) {
+					
+					//if (j == i->ge) {
+						//le = false;
+					//}
+				//}
+			//	if(le)
+					leftVec.push_back(i->ge);
+				
 			}
-		}
-		/* 
-		for (auto & i : temp) {
-			if (i->minCoord[depth % 3] <= middle) {
-				leftVec.push_back(i);
+			//may need to test
+
+			if (i->ge->maxCoord[rotate] == i->ge->minCoord[rotate]) {
+				if (i->ge->maxCoord[rotate] == middle && i->max)
+				{
+					rightVec.push_back(i->ge);
+
+				}
+				if (i->ge->minCoord[rotate] == middle && !(i->max))
+				{
+					leftVec.push_back(i->ge);
+
+				}
 			}
+			
+
+
 		}
-		*/
-		//push left by least, may be optimized
-		/*
-		if (depth % 3 == 0) {
-			sort(temp.begin(), temp.end(), by_minX());
-		}
-		else if (depth % 3 == 1) {
-			sort(temp.begin(), temp.end(), by_minY());
-		}
-		else {
-			sort(temp.begin(), temp.end(), by_minZ());
-		}
-		*/
 
 		Vector3d nextMin1 = Vmin;
 		Vector3d nextMin2 = Vmin;
@@ -200,12 +150,53 @@ KDtreeNode::KDtreeNode(vector <Geometry*>& P, int depth, int end,  Vector3d &Vmi
 	if(isLeaf){
 		objects = P;
 		cout << objects.size() << "\n";
+		cout << minCoord << "\n";
+		cout << maxCoord << "\n";
+		
+
+		for (auto tempi : objects) {
+			cout << tempi->minCoord[0] << "\n";
+			cout << tempi->maxCoord[0] << "\n";
+		}
+		cout << "\n";
 	}
 }
 
 KDtreeNode::~KDtreeNode() {
 
 }
+
+
+ShadeData* KDtree::traverseShallow(Ray & r, float d) {
+	double t;
+	double t1 = (-r.origin[0] + mainMinCoord[0]) / r.direction[0];
+	double t2 = (-r.origin[0] + mainMaxCoord[0]) / r.direction[0];
+
+	double t3 = (-r.origin[1] + mainMinCoord[1]) / r.direction[1];
+	double t4 = (-r.origin[1] + mainMaxCoord[1]) / r.direction[1];
+
+	double t5 = (-r.origin[2] + mainMinCoord[2]) / r.direction[2];
+	double t6 = (-r.origin[2] + mainMaxCoord[2]) / r.direction[2];
+
+	double tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+	double tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+	// if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
+	if (tmax < 0)
+	{
+		t = tmax;
+		return false;
+	}
+	// if tmin > tmax, ray doesn't intersect AABB
+	if (tmin > tmax)
+	{
+		t = tmax;
+		return false;
+	}
+
+	return childTraverseShallow(r, root, tmin, tmax, d);
+}
+
+
 
 ShadeData* KDtree::traverse(Ray & r) {
 	double t;
@@ -232,12 +223,135 @@ ShadeData* KDtree::traverse(Ray & r) {
 		t = tmax;
 		return nullptr;
 	}
+	
 	return childTraverse(r, root, tmin, tmax);
 }
 
+ShadeData* KDtree::childTraverseShallow(Ray & r, KDtreeNode * nd, double tmin, double tmax, float d) {
+	KDtreeNode* temp = nd;
+	//	cout << tmin << "\n";
+		//cout << tmax << "\n";
+
+		/*
+		while (temp->isLeaf == false) {
+
+
+			int i = temp->dep % 3;
+			KDtreeNode* nearNode = r.origin[i] < temp->middle ? temp->left : temp->right;
+			KDtreeNode* farNode = r.origin[i] < temp->middle ? temp->right : temp->left;
+			double splitT = (temp->middle - r.origin[i]) / r.direction[i];
+			if (splitT <= tmin) {
+				temp = farNode;
+				//tmin = splitT;
+			}
+			if (splitT >= tmax || splitT<0) {
+				temp = nearNode;
+				//tmax = splitT;
+			}
+			else {
+				ShadeData* tempSD = childTraverse(r, nearNode, tmin, splitT);
+				if (tempSD != nullptr) {
+					return tempSD;
+				}
+				else {
+					return childTraverse(r, farNode, splitT, tmax);
+				}
+			}
+		}*/
+
+	if ((temp->isLeaf == false)) {
+		int i = temp->dep % 3;
+		KDtreeNode* nearNode = r.origin[i] < temp->middle ? temp->left : temp->right;
+		KDtreeNode* farNode = r.origin[i] < temp->middle ? temp->right : temp->left;
+		double splitT = (temp->middle - r.origin[i]) / r.direction[i];
+
+		if (splitT > tmax) {
+			return childTraverseShallow(r, nearNode, tmin, tmax, d);
+		}
+		else if (splitT < tmin) {
+			if (splitT > 0) {
+				return childTraverseShallow(r, farNode, tmin, tmax, d);
+			}
+			else if (splitT < 0) {
+				return childTraverseShallow(r, nearNode, tmin, tmax, d);
+			}
+			else {
+				if (r.direction[i] < 0)
+					return childTraverseShallow(r, farNode, tmin, tmax, d);
+				else
+					return childTraverseShallow(r, nearNode, tmin, tmax, d);
+			}
+		}
+		else {
+			if (splitT > 0) {
+				ShadeData* tempSD = childTraverseShallow(r, nearNode, tmin, splitT, d);
+
+				//else {
+				ShadeData* tempSD2 = childTraverseShallow(r, farNode, splitT, tmax, d);
+				//}
+
+				if (tempSD != nullptr && tempSD2 != nullptr) {
+					if (tempSD2->t < tempSD->t) {
+						delete tempSD;
+						return tempSD2;
+					}
+					delete tempSD2;
+					return tempSD;
+				}
+				if (tempSD != nullptr) {
+					return tempSD;
+				}
+				return tempSD2;
+			}
+			else {
+				return childTraverseShallow(r, nearNode, splitT, tmax, d);
+			}
+		}
+
+	}
+
+	if (temp->isLeaf) {
+		ShadeData * output = new ShadeData;
+		float localTmin = FLT_MAX;
+		bool hitObject = false;
+		for (auto & i : temp->objects) {
+			//if (i->minCoord[0] == 213.0)
+				//cout << "hit" << "\n";
+			bool flag = i->hit(r, output);
+			if (flag && output->t < localTmin) {
+				hitObject = true;
+				localTmin = output->t;
+				output->castShadow = i->castShadow;
+			}
+		}
+		if (hitObject) {
+
+			//if (output->castShadow)
+			//{
+
+			//	cout << tmin << "\n";
+				//cout << tmax << "\n";
+			//}
+			return output;
+		}
+
+
+
+
+		return nullptr;
+	}
+}
+
+
 ShadeData* KDtree::childTraverse(Ray & r, KDtreeNode * nd, double tmin, double tmax) {
 	KDtreeNode* temp = nd;
+//	cout << tmin << "\n";
+	//cout << tmax << "\n";
+
+	/* 
 	while (temp->isLeaf == false) {
+		
+
 		int i = temp->dep % 3;
 		KDtreeNode* nearNode = r.origin[i] < temp->middle ? temp->left : temp->right;
 		KDtreeNode* farNode = r.origin[i] < temp->middle ? temp->right : temp->left;
@@ -259,62 +373,94 @@ ShadeData* KDtree::childTraverse(Ray & r, KDtreeNode * nd, double tmin, double t
 				return childTraverse(r, farNode, splitT, tmax);
 			}
 		}
+	}*/
+
+	if ((temp->isLeaf == false)) {
+		int i = temp->dep % 3;
+		KDtreeNode* nearNode = r.origin[i] < temp->middle ? temp->left : temp->right;
+		KDtreeNode* farNode = r.origin[i] < temp->middle ? temp->right : temp->left;
+		double splitT = (temp->middle - r.origin[i]) / r.direction[i];
+
+		if (splitT > tmax) {
+			return childTraverse(r, nearNode, tmin, tmax);
+		}
+		else if (splitT < tmin) {
+			if (splitT > 0) {
+				return childTraverse(r, farNode, tmin, tmax);
+			}
+			else if (splitT < 0) {
+				return childTraverse(r, nearNode, tmin, tmax);
+			}
+			else {
+				if (r.direction[i] < 0)
+					return childTraverse(r, farNode, tmin, tmax);
+				else
+					return childTraverse(r, nearNode, tmin, tmax);
+			}
+		}
+		else {
+			if (splitT > 0) {
+				ShadeData* tempSD= childTraverse(r, nearNode, tmin, splitT);
+				
+				//else {
+				ShadeData* tempSD2=  childTraverse(r, farNode, splitT, tmax);
+				//}
+
+				if (tempSD != nullptr && tempSD2 != nullptr) {
+					if (tempSD2->t < tempSD->t) {
+						delete tempSD;
+						return tempSD2;
+					}
+					delete tempSD2;
+					return tempSD;
+				}
+				if (tempSD != nullptr) {
+					return tempSD;
+				}
+				return tempSD2;
+			}
+			else {
+				return childTraverse(r, nearNode, splitT, tmax);
+			}
+		}
+
 	}
 
 	if (temp->isLeaf) {
-		 /* 
-		double t1 = (r.origin[0] - temp->minCoord[0]) / r.direction[0];
-		double t2 = (r.origin[0] - temp->maxCoord[0]) / r.direction[0];
-
-		double t3 = (r.origin[1] - temp->minCoord[1]) / r.direction[1];
-		double t4 = (r.origin[1] - temp->maxCoord[1]) / r.direction[1];
-
-		double t5 = (r.origin[2] - temp->minCoord[2]) / r.direction[2];
-		double t6 = (r.origin[2] - temp->maxCoord[2]) / r.direction[2];
-
-		double tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
-		double tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
-		
-		// if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
-
-		if (tmax < 0)
-		{
-			return nullptr;
-		}
-
-		// if tmin > tmax, ray doesn't intersect AABB
-		if (tmin > tmax)
-		{
-			return nullptr;
-		}
-		*/
-	//	else {
 			ShadeData * output = new ShadeData;
-			int localTmin = INT_MAX;
+			float localTmin = FLT_MAX;
 			bool hitObject = false;
 			for (auto & i : temp->objects) {
+				//if (i->minCoord[0] == 213.0)
+					//cout << "hit" << "\n";
 				bool flag = i->hit(r, output);
 				if (flag && output->t < localTmin) {
 					hitObject = true;
 					localTmin = output->t;
+					output->castShadow = i->castShadow;
+					
 				}
 			}
 			if (hitObject) {
+
+				//if (output->castShadow)
+				//{
+					
+				//	cout << tmin << "\n";
+					//cout << tmax << "\n";
+				//}
+				//if (output->castShadow == false)
+				//{	
+					//cout << "hit" << "\n";
+				//}
 				return output;
 			}
+
+			
+			
+
 			return nullptr;
-	//	}
 	}
-	/*else {
-		int i = nd.dep % 3;
-		double splitT = (nd.middle - r.origin[i]) / r.direction[i];
-		if (splitT > tmin) {
-			return traverse(r, *(nd.left));
-		}
-		else {
-			return traverse(r, *(nd.right));
-		}
-	}*/
 }
 
 

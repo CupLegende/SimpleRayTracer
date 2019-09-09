@@ -3,6 +3,7 @@
 Graphics::Graphics()
 {
 	rw = new sf::RenderWindow(sf::VideoMode(800, 800), "SFML works!");
+	//vertices = sf::Vertex[800][800];
 }
 
 
@@ -14,8 +15,8 @@ void Graphics::add(RenderPixel* rd) {
 	sf::Vertex vertex;
 	vertex.position = sf::Vector2f(rd->x, rd->y);
 	vertex.color = sf::Color(rd->r, rd->g, rd->b);
+	#pragma omp critical
 	vertices.push_back(vertex);
-	delete rd;
 }
 
 void Graphics::draw() {

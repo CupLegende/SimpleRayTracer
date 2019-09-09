@@ -4,6 +4,7 @@
 #include <iostream>
 #include <Eigen/dense>
 #include "Geometry.h"
+#include "Material.h"
 
 using namespace Eigen;
 using namespace std;
@@ -36,9 +37,12 @@ bool ObjReader::read(const char* path, vector<Vector3d*> &vertices, vector<Trian
 			int matches = fscanf(file, "%d %d %d\n", &vertexIndex[0], &vertexIndex[1], &vertexIndex[2]);
 			//cout << vertices.size();
 
-			
-
-			Triangle * temp = new Triangle( (*vertices.at(vertexIndex[0]-1)) * 300, (*vertices.at(vertexIndex[1]-1)) * 300, (*vertices.at(vertexIndex[2]-1)) * 300, Vector3d(0.8,0.6,0.4));
+			Vector3d c1 = Vector3d(0.5, 0.7, 0.4);
+			ConstantColor* col1 = new ConstantColor(c1);
+			Vector3d c2 = Vector3d(1.0, 1.0, 1.0);
+			ConstantColor* col2 = new ConstantColor(c2);
+			Phong * matSp1 = new Phong((float)0.05, (float)0.9, col1, (float)0.1, c2, (float)1.5);
+			Triangle * temp = new Triangle( (*vertices.at(vertexIndex[0]-1)) * 300, (*vertices.at(vertexIndex[1]-1)) * 300, (*vertices.at(vertexIndex[2]-1)) * 300, matSp1);
 			triangles.push_back(temp);
 		}
 
